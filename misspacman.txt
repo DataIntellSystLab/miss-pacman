@@ -1,0 +1,672 @@
+rm(list=ls(all=TRUE))
+
+library(randomForest)
+#library(rpart)
+#library(MASS)
+#library(gdata)
+library(dagitty)
+#library(mboost)
+library(bnlearn)
+library(ape)
+library(corrplot)
+
+associationPValue <- function(rf,out)
+{
+	pred=predict(rf)
+	pred[which(is.na(pred))]=sample(na.omit(pred),length(pred[which(is.na(pred))]))
+	if (!is.factor(out))
+	{
+		pval=cor.test(pred,out)$p.value
+		if (is.na(pval)) {pval=0}
+	}
+	else
+	{
+		if (length(unique(pred))>1 & length(unique(out))>1)
+			{pval=fisher.test(pred,out)$p}
+		else
+			{pval=1-as.numeric((sort(table(out),decreasing=T)/length(out))[1])}
+	}
+	return(pval)
+}
+
+misspacman_rf <- function(data,ntrees=100)
+{
+	#cat("calculating orthogonal set ")
+	oldnames=names(data)
+	newnames=make.names(names(data))
+	names(data)=newnames
+	repl=T
+	shuf_feat=sample(1:length(data))
+	ind_list=shuf_feat[1]
+	count=1
+	for (i in shuf_feat[-1])
+	{
+		dt=data[,c(i,ind_list)]
+		form=as.formula(paste(names(data)[i],"~."))
+		rf_feat=randomForest(form,data=dt,ntree=ntrees,replace=repl)
+		pval=associationPValue(rf_feat,data[,i])
+		if (pval>(0.05/length(data)))
+			ind_list=c(ind_list,i)
+		#if (count%%round(length(shuf_feat)/5,0)==0) cat(100*count/length(shuf_feat),"% ",sep="")
+		count=count+1
+	}
+	#cat("100%")
+	#cat("\n",length(ind_list)," orthogonal features selected out of ",length(data)," (",round(100*length(ind_list)/length(data),1),"%)",sep="")
+	ind_list=sort(ind_list)
+	#cat("\n",names(data)[ind_list])
+	
+	#cat("\ncalculating peformance of the orthogonal set")
+	#intra_score=NULL
+	#inter_score=NULL
+	#for (i in ind_list)
+	#{
+	#	dt=data[,ind_list]
+	#	form=as.formula(paste(names(data)[i],"~."))
+	#	rf_feat=randomForest(form,data=dt,ntree=ntrees,replace=repl)
+	#	pval=associationPValue(rf_feat,data[,i])
+	#	sc=min(1,pval*length(data))
+	#	intra_score=c(intra_score,sc)	
+	#}
+	#cat("\n summary of Bonferroni p-values (by correlation/chi-square tests) when predicting with RF each variable in the orthogonal set using the others in the orthogonal set (target=1)",sep="")
+	#cat("\n Min.=",summary(intra_score)[1]," 1st.Qu.=",summary(intra_score)[2]," Median=",summary(intra_score)[3]," Mean=",summary(intra_score)[4]," 3rd.Qu.=",summary(intra_score)[5]," Max.",summary(intra_score)[6],sep="")
+	#for (u in 1:length(data))
+	#{
+	#	dt=data[,c(u,ind_list)]
+	#	form=as.formula(paste(names(data)[u],"~."))
+	#	rf_feat=randomForest(form,data=dt,ntree=ntrees,replace=repl)
+	#	pval=associationPValue(rf_feat,data[,u])
+	#	sc=min(1,pval*length(data))
+	#	inter_score=c(inter_score,sc)
+	#}
+	#cat("\n summary of Bonferroni p-values (by correlation/chi-square tests) when predicting with RF each data variable using the whole orthogonal set (target=0)",sep="")
+	#cat("\n Min.=",summary(inter_score)[1]," 1st.Qu.=",summary(inter_score)[2]," Median=",summary(inter_score)[3]," Mean=",summary(inter_score)[4]," 3rd.Qu.=",summary(inter_score)[5]," Max.",summary(inter_score)[6],"\n",sep="")
+	return(ind_list)
+}
+
+
+
+######################## TESTING TIMING ########################
+
+nodesizes=c(20,30,40,50,60,70,80,90,100,125,150,200,250,300)
+nsamples=100
+hc_time=NULL
+pc_time=NULL
+fi_time=NULL
+mc_time=NULL
+mc1_time=NULL
+mcsqrt_time=NULL
+for (i in 1:length(nodesizes))
+{
+	cat(nodesizes[i],"\r\n")
+	nnodes=nodesizes[i]
+	prob=2/(nnodes-1)
+	ntrees=nnodes
+	nperm=nnodes
+	randomdag=dagitty(randomDAG(nnodes,prob),layout=F)
+	isSim=F
+	while(!isSim)
+	{
+		simdata=tryCatch(simulateSEM(randomdag,N=nsamples,standardized=T),error=function(e) NULL)
+		if (!is.null(simdata)) {isSim=T}
+	}
+	tim=system.time(misspacman_rf(simdata,ntrees))[3]
+	mc_time=c(mc_time,tim*nperm)
+	mc1_time=c(mc1_time,tim)
+	mcsqrt_time=c(mcsqrt_time,tim*sqrt(nnodes))
+	tim=system.time(hc(simdata))[3]
+	hc_time=c(hc_time,tim)
+	tim=system.time(pc.stable(simdata))[3]
+	pc_time=c(pc_time,tim)
+	tim=system.time(fast.iamb(simdata))[3]
+	fi_time=c(fi_time,tim)
+	
+plot(nodesizes[1:length(hc_time)],log(hc_time),col="white",ylim=c(min(c(log(mc_time),log(pc_time),log(hc_time),log(fi_time))),max(c(log(mc_time),log(pc_time),log(hc_time),log(fi_time)))),xlab="Network size (n_nodes)",ylab="log time (s)")
+points(nodesizes[1:length(mc_time)],log(mc_time),col=2,lwd=2,pch=2)
+points(nodesizes[1:length(mc1_time)],log(mc1_time),col=2,lwd=2,pch=2)
+points(nodesizes[1:length(mcsqrt_time)],log(mcsqrt_time),col=2,lwd=2,pch=2)
+points(nodesizes[1:length(hc_time)],log(hc_time),col=3,lwd=2,pch=3)
+points(nodesizes[1:length(pc_time)],log(pc_time),col=4,lwd=2,pch=4)
+points(nodesizes[1:length(fi_time)],log(fi_time),col=5,lwd=2,pch=5)
+lines(nodesizes[1:length(mc_time)],log(mc_time),col=2,lty=1,lwd=2)
+lines(nodesizes[1:length(mc1_time)],log(mc1_time),col=2,lty=2,lwd=2)
+lines(nodesizes[1:length(mcsqrt_time)],log(mcsqrt_time),col=2,lty=3,lwd=2)
+lines(nodesizes[1:length(hc_time)],log(hc_time),col=3,lwd=2)
+lines(nodesizes[1:length(pc_time)],log(pc_time),col=4,lwd=2)
+lines(nodesizes[1:length(fi_time)],log(fi_time),col=5,lwd=2)
+legend("topleft",c("MISS-PACMAN (n_nodes)","MISS-PACMAN single iteration","MISS-PACMAN sqrt(n_nodes)","Hill Climbing","Peter-Clark","Fast IAMB"),lwd=2,col=c(2,2,2,3,4,5),lty=c(1,2,3,1,1,1),pch=c(2,2,2,3,4,5))
+}
+
+
+######################## TESTING BAYESIAN NETWORK SKELETON ESTIMATION PERFORMANCE ########################
+
+boot=25
+nnodes=25
+nsamples=250
+prob=2/(nnodes-1)
+ntrees=nnodes
+nperm=nnodes
+hc_dist=NULL
+pc_dist=NULL
+fi_dist=NULL
+mc_dist=NULL
+mc_dist_1=NULL
+mc_dist_sqrt=NULL
+for (i in 1:boot)
+{
+	if (i%%3==0) cat(i,"\r\n")
+	randomdag=dagitty(randomDAG(nnodes,prob),layout=F)
+	isSim=F
+	while(!isSim)
+	{
+		simdata=tryCatch(simulateSEM(randomdag,N=nsamples,standardized=T),error=function(e) NULL)
+		if (!is.null(simdata)) {isSim=T}
+	}
+	misscpc_vars=list()
+	for (j in 1:nperm)
+	{
+		misscpc_set=misspacman_rf(simdata,ntrees)
+		misscpc_vars[[j]]=names(simdata)[misscpc_set]
+	}
+	dagstring="pdag{ "
+	dagstring=paste(dagstring,paste(names(randomdag),";",collapse=""))
+	dagstring_1=dagstring
+	dagstring_sqrt=dagstring
+	for (n1 in 1:(length(names(randomdag))-1))
+	{
+		for (n2 in (n1+1):length(names(randomdag)))
+		{
+			found=F
+			found_1=F
+			found_sqrt=F
+			for (j in 1:length(misscpc_vars))
+			{
+				if ( length(intersect(names(randomdag)[n1],misscpc_vars[[j]]))>0 & length(intersect(names(randomdag)[n2],misscpc_vars[[j]]))>0 )
+				{
+					found=T
+					if (found & j==1) found_1=T
+					if (found & j<sqrt(nnodes)) found_sqrt=T
+					if (found) break
+				}
+			}
+			if (!found_1) dagstring_1=paste(dagstring_1,names(randomdag)[n1],"--",names(randomdag)[n2],";");
+			if (!found_sqrt) dagstring_sqrt=paste(dagstring_sqrt,names(randomdag)[n1],"--",names(randomdag)[n2],";");
+			if (!found) dagstring=paste(dagstring,names(randomdag)[n1],"--",names(randomdag)[n2],";");
+		}
+	}
+	dagstring=paste(dagstring,"}")
+	dagstring_1=paste(dagstring_1,"}")
+	dagstring_sqrt=paste(dagstring_sqrt,"}")
+	
+	dagitty_misscpc=dagitty(dagstring,layout=F)
+	bn_mc=empty.graph(names(dagitty_misscpc))
+	arcset=matrix(unlist(dagitty::edges(dagitty_misscpc)[,1:2]),ncol=2,dimnames = list(NULL, c("from", "to")))
+	arcs(bn_mc)=arcset
+	
+	dagitty_misscpc=dagitty(dagstring_1,layout=F)
+	bn_mc1=empty.graph(names(dagitty_misscpc))
+	arcset=matrix(unlist(dagitty::edges(dagitty_misscpc)[,1:2]),ncol=2,dimnames = list(NULL, c("from", "to")))
+	arcs(bn_mc1)=arcset
+	
+	dagitty_misscpc=dagitty(dagstring_sqrt,layout=F)
+	bn_mcsqrt=empty.graph(names(dagitty_misscpc))
+	arcset=matrix(unlist(dagitty::edges(dagitty_misscpc)[,1:2]),ncol=2,dimnames = list(NULL, c("from", "to")))
+	arcs(bn_mcsqrt)=arcset
+	
+	bn_hc=hc(simdata)
+	bn_pc=pc.stable(simdata)
+	bn_fi=fast.iamb(simdata)
+	bn_true=empty.graph(names(randomdag))
+	arcset=matrix(unlist(dagitty::edges(randomdag)[,1:2]),ncol=2,dimnames = list(NULL, c("from", "to")))
+	arcs(bn_true)=arcset
+	hc_dist=c(hc_dist,shd(bn_hc,bn_true))
+	pc_dist=c(pc_dist,shd(bn_pc,bn_true))
+	fi_dist=c(fi_dist,shd(bn_fi,bn_true))
+	mc_dist_1=c(mc_dist_1,shd(bn_mc1,bn_true))
+	mc_dist_sqrt=c(mc_dist_sqrt,shd(bn_mcsqrt,bn_true))
+	mc_dist=c(mc_dist,shd(bn_mc,bn_true))
+}
+test_1=cbind(mc_dist_1,mc_dist_sqrt,mc_dist,hc_dist,fi_dist,pc_dist)
+
+nnodes=50
+nsamples=500
+prob=2/(nnodes-1)
+ntrees=nnodes
+nperm=nnodes
+hc_dist=NULL
+pc_dist=NULL
+fi_dist=NULL
+mc_dist=NULL
+mc_dist_1=NULL
+mc_dist_sqrt=NULL
+for (i in 1:boot)
+{
+	if (i%%3==0) cat(i,"\r\n")
+	randomdag=dagitty(randomDAG(nnodes,prob),layout=F)
+	isSim=F
+	while(!isSim)
+	{
+		simdata=tryCatch(simulateSEM(randomdag,N=nsamples,standardized=T),error=function(e) NULL)
+		if (!is.null(simdata)) {isSim=T}
+	}
+	misscpc_vars=list()
+	for (j in 1:nperm)
+	{
+		misscpc_set=misspacman_rf(simdata,ntrees)
+		misscpc_vars[[j]]=names(simdata)[misscpc_set]
+	}
+	dagstring="pdag{ "
+	dagstring=paste(dagstring,paste(names(randomdag),";",collapse=""))
+	dagstring_1=dagstring
+	dagstring_sqrt=dagstring
+	for (n1 in 1:(length(names(randomdag))-1))
+	{
+		for (n2 in (n1+1):length(names(randomdag)))
+		{
+			found=F
+			found_1=F
+			found_sqrt=F
+			for (j in 1:length(misscpc_vars))
+			{
+				if ( length(intersect(names(randomdag)[n1],misscpc_vars[[j]]))>0 & length(intersect(names(randomdag)[n2],misscpc_vars[[j]]))>0 )
+				{
+					found=T
+					if (found & j==1) found_1=T
+					if (found & j<sqrt(nnodes)) found_sqrt=T
+					if (found) break
+				}
+			}
+			if (!found_1) dagstring_1=paste(dagstring_1,names(randomdag)[n1],"--",names(randomdag)[n2],";");
+			if (!found_sqrt) dagstring_sqrt=paste(dagstring_sqrt,names(randomdag)[n1],"--",names(randomdag)[n2],";");
+			if (!found) dagstring=paste(dagstring,names(randomdag)[n1],"--",names(randomdag)[n2],";");
+		}
+	}
+	dagstring=paste(dagstring,"}")
+	dagstring_1=paste(dagstring_1,"}")
+	dagstring_sqrt=paste(dagstring_sqrt,"}")
+	
+	dagitty_misscpc=dagitty(dagstring,layout=F)
+	bn_mc=empty.graph(names(dagitty_misscpc))
+	arcset=matrix(unlist(dagitty::edges(dagitty_misscpc)[,1:2]),ncol=2,dimnames = list(NULL, c("from", "to")))
+	arcs(bn_mc)=arcset
+	
+	dagitty_misscpc=dagitty(dagstring_1,layout=F)
+	bn_mc1=empty.graph(names(dagitty_misscpc))
+	arcset=matrix(unlist(dagitty::edges(dagitty_misscpc)[,1:2]),ncol=2,dimnames = list(NULL, c("from", "to")))
+	arcs(bn_mc1)=arcset
+	
+	dagitty_misscpc=dagitty(dagstring_sqrt,layout=F)
+	bn_mcsqrt=empty.graph(names(dagitty_misscpc))
+	arcset=matrix(unlist(dagitty::edges(dagitty_misscpc)[,1:2]),ncol=2,dimnames = list(NULL, c("from", "to")))
+	arcs(bn_mcsqrt)=arcset
+	
+	bn_hc=hc(simdata)
+	bn_pc=pc.stable(simdata)
+	bn_fi=fast.iamb(simdata)
+	bn_true=empty.graph(names(randomdag))
+	arcset=matrix(unlist(dagitty::edges(randomdag)[,1:2]),ncol=2,dimnames = list(NULL, c("from", "to")))
+	arcs(bn_true)=arcset
+	hc_dist=c(hc_dist,shd(bn_hc,bn_true))
+	pc_dist=c(pc_dist,shd(bn_pc,bn_true))
+	fi_dist=c(fi_dist,shd(bn_fi,bn_true))
+	mc_dist_1=c(mc_dist_1,shd(bn_mc1,bn_true))
+	mc_dist_sqrt=c(mc_dist_sqrt,shd(bn_mcsqrt,bn_true))
+	mc_dist=c(mc_dist,shd(bn_mc,bn_true))
+}
+test_2=cbind(mc_dist_1,mc_dist_sqrt,mc_dist,hc_dist,fi_dist,pc_dist)
+
+par(mfcol=c(2,1))
+boxplot(test_1)
+boxplot(test_2)
+
+
+######################## TESTING REAL-DATA PERFORMANCE ########################
+
+
+download.file(url='https://www.bnlearn.com/research/scirep17/prepd-ortho.rda', destfile ="prepd-ortho.rda")
+load('prepd-ortho.rda')
+
+diff = data.frame(
+           dANB = ortho$ANB2 - ortho$ANB,
+           dPPPM = ortho$PPPM2 - ortho$PPPM,
+           dIMPA = ortho$IMPA2 - ortho$IMPA,
+           dCoA = ortho$CoA2 - ortho$CoA,
+           dGoPg = ortho$GoPg2 - ortho$GoPg,
+           dCoGo = ortho$CoGo2 - ortho$CoGo,
+           dT = ortho$T2 - ortho$T1,
+           Growth = as.numeric(ortho$Growth) - 1,
+           Treatment = as.numeric(ortho$Treatment != "NT")
+ )
+
+
+nruns=30
+
+resu=NULL
+
+for (nr in 1:nruns)
+{
+	if (nr%%2==0) cat(nr,"\r\n")
+
+	nnodes=25
+	probs=2/(nnodes-1)
+	nsamples=nnodes*10
+	randomdag=dagitty(randomDAG(nnodes,probs),layout=F)
+	isSim=F
+	while(!isSim)
+	{
+		simdata=tryCatch(simulateSEM(randomdag,N=nsamples,standardized=T),error=function(e) NULL)
+		if (!is.null(simdata)) {isSim=T}
+	}	
+
+nnodes=dim(simdata)[2]
+ntrees=nnodes
+nperm=nnodes
+
+bn_hc=hc(simdata)
+bn_fi=fast.iamb(simdata)
+bn_pc=pc.stable(simdata)
+bn_gs=gs(simdata)
+bn_cl=chow.liu(simdata)
+
+misscpc_vars=list()
+	for (j in 1:nperm)
+	{
+		misscpc_set=misspacman_rf(simdata,ntrees)
+		misscpc_vars[[j]]=names(simdata)[misscpc_set]
+	}
+	dagstring="pdag{ "
+	dagstring=paste(dagstring,paste(names(simdata),";",collapse=""))
+	dagstring_1=dagstring
+	dagstring_sqrt=dagstring
+	for (n1 in 1:(length(names(simdata))-1))
+	{
+		for (n2 in (n1+1):length(names(simdata)))
+		{
+			found=F
+			found_1=F
+			found_sqrt=F
+			for (j in 1:length(misscpc_vars))
+			{
+				if ( length(intersect(names(simdata)[n1],misscpc_vars[[j]]))>0 & length(intersect(names(simdata)[n2],misscpc_vars[[j]]))>0 )
+				{
+					found=T
+					if (found & j==1) found_1=T
+					if (found & j<sqrt(nnodes)) found_sqrt=T
+					if (found) break
+				}
+			}
+			if (!found_1) dagstring_1=paste(dagstring_1,names(simdata)[n1],"--",names(simdata)[n2],";");
+			if (!found_sqrt) dagstring_sqrt=paste(dagstring_sqrt,names(simdata)[n1],"--",names(simdata)[n2],";");
+			if (!found) dagstring=paste(dagstring,names(simdata)[n1],"--",names(simdata)[n2],";");
+		}
+	}
+	dagstring=paste(dagstring,"}")
+	dagstring_1=paste(dagstring_1,"}")
+	dagstring_sqrt=paste(dagstring_sqrt,"}")
+	
+	dagitty_misscpc=dagitty(dagstring,layout=F)
+	bn_mc=empty.graph(names(dagitty_misscpc))
+	arcset=matrix(unlist(dagitty::edges(dagitty_misscpc)[,1:2]),ncol=2,dimnames = list(NULL, c("from", "to")))
+	arcs(bn_mc)=arcset
+	
+	dagitty_misscpc=dagitty(dagstring_1,layout=F)
+	bn_mc1=empty.graph(names(dagitty_misscpc))
+	arcset=matrix(unlist(dagitty::edges(dagitty_misscpc)[,1:2]),ncol=2,dimnames = list(NULL, c("from", "to")))
+	arcs(bn_mc1)=arcset
+	
+	dagitty_misscpc=dagitty(dagstring_sqrt,layout=F)
+	bn_mcsqrt=empty.graph(names(dagitty_misscpc))
+	arcset=matrix(unlist(dagitty::edges(dagitty_misscpc)[,1:2]),ncol=2,dimnames = list(NULL, c("from", "to")))
+	arcs(bn_mcsqrt)=arcset
+
+
+bn_ra=random.graph(names(simdata), prob = probs)
+	
+resu=rbind(resu,c(
+shd(bn_hc,bn_pc),
+shd(bn_hc,bn_fi),
+shd(bn_hc,bn_mc),
+shd(bn_hc,bn_mc1),
+shd(bn_hc,bn_mcsqrt),
+shd(bn_hc,bn_gs),
+shd(bn_hc,bn_cl),
+shd(bn_hc,bn_ra),
+
+shd(bn_pc,bn_fi),
+shd(bn_pc,bn_mc),
+shd(bn_pc,bn_mc1),
+shd(bn_pc,bn_mcsqrt),
+shd(bn_pc,bn_gs),
+shd(bn_pc,bn_cl),
+shd(bn_pc,bn_ra),
+
+shd(bn_fi,bn_mc),
+shd(bn_fi,bn_mc1),
+shd(bn_fi,bn_mcsqrt),
+shd(bn_fi,bn_gs),
+shd(bn_fi,bn_cl),
+shd(bn_fi,bn_ra),
+
+shd(bn_mc,bn_mc1),
+shd(bn_mc,bn_mcsqrt),
+shd(bn_mc,bn_gs),
+shd(bn_mc,bn_cl),
+shd(bn_mc,bn_ra),
+
+shd(bn_mc1,bn_mcsqrt),
+shd(bn_mc1,bn_gs),
+shd(bn_mc1,bn_cl),
+shd(bn_mc1,bn_ra),
+
+shd(bn_mcsqrt,bn_gs),
+shd(bn_mcsqrt,bn_cl),
+shd(bn_mcsqrt,bn_ra),
+
+shd(bn_gs,bn_cl),
+shd(bn_gs,bn_ra),
+
+shd(bn_cl,bn_ra)
+
+))
+
+}
+
+resu_rand=resu
+
+avg_resu=colMeans(resu)
+dists=matrix(0,nrow=9,ncol=9)
+c=1
+for (i in 1:8)
+{
+for (j in i:9)
+{
+ if (i!=j)
+	{
+		cat(i," ",j,"\r\n")
+		dists[i,j]=avg_resu[c]
+		dists[j,i]=avg_resu[c]
+		c=c+1
+	}
+}
+}
+
+
+rownames(dists)=c("Hill-Climbing","Peter-Clark","Fast IAMB","MISS-PACMAN n","MISS-PACMAN single","MISS-PACMAN sqrt(n)","Grow-Shrink","Chow-Liu","Random network")
+colnames(dists)=c("Hill-Climbing","Peter-Clark","Fast IAMB","MISS-PACMAN n","MISS-PACMAN single","MISS-PACMAN sqrt(n)","Grow-Shrink","Chow-Liu","Random network")
+
+dists_rand=dists
+
+resu=NULL
+
+for (nr in 1:nruns)
+{
+	if (nr%%2==0) cat(nr,"\r\n")
+
+	simdata=diff[sample(dim(diff)[1],replace=T),]
+
+
+nnodes=dim(simdata)[2]
+ntrees=nnodes
+nperm=nnodes
+
+bn_hc=hc(simdata)
+bn_fi=fast.iamb(simdata)
+bn_pc=pc.stable(simdata)
+bn_gs=gs(simdata)
+bn_cl=chow.liu(simdata)
+
+misscpc_vars=list()
+	for (j in 1:nperm)
+	{
+		misscpc_set=misspacman_rf(simdata,ntrees)
+		misscpc_vars[[j]]=names(simdata)[misscpc_set]
+	}
+	dagstring="pdag{ "
+	dagstring=paste(dagstring,paste(names(simdata),";",collapse=""))
+	dagstring_1=dagstring
+	dagstring_sqrt=dagstring
+	for (n1 in 1:(length(names(simdata))-1))
+	{
+		for (n2 in (n1+1):length(names(simdata)))
+		{
+			found=F
+			found_1=F
+			found_sqrt=F
+			for (j in 1:length(misscpc_vars))
+			{
+				if ( length(intersect(names(simdata)[n1],misscpc_vars[[j]]))>0 & length(intersect(names(simdata)[n2],misscpc_vars[[j]]))>0 )
+				{
+					found=T
+					if (found & j==1) found_1=T
+					if (found & j<sqrt(nnodes)) found_sqrt=T
+					if (found) break
+				}
+			}
+			if (!found_1) dagstring_1=paste(dagstring_1,names(simdata)[n1],"--",names(simdata)[n2],";");
+			if (!found_sqrt) dagstring_sqrt=paste(dagstring_sqrt,names(simdata)[n1],"--",names(simdata)[n2],";");
+			if (!found) dagstring=paste(dagstring,names(simdata)[n1],"--",names(simdata)[n2],";");
+		}
+	}
+	dagstring=paste(dagstring,"}")
+	dagstring_1=paste(dagstring_1,"}")
+	dagstring_sqrt=paste(dagstring_sqrt,"}")
+	
+	dagitty_misscpc=dagitty(dagstring,layout=F)
+	bn_mc=empty.graph(names(dagitty_misscpc))
+	arcset=matrix(unlist(dagitty::edges(dagitty_misscpc)[,1:2]),ncol=2,dimnames = list(NULL, c("from", "to")))
+	arcs(bn_mc)=arcset
+	
+	dagitty_misscpc=dagitty(dagstring_1,layout=F)
+	bn_mc1=empty.graph(names(dagitty_misscpc))
+	arcset=matrix(unlist(dagitty::edges(dagitty_misscpc)[,1:2]),ncol=2,dimnames = list(NULL, c("from", "to")))
+	arcs(bn_mc1)=arcset
+	
+	dagitty_misscpc=dagitty(dagstring_sqrt,layout=F)
+	bn_mcsqrt=empty.graph(names(dagitty_misscpc))
+	arcset=matrix(unlist(dagitty::edges(dagitty_misscpc)[,1:2]),ncol=2,dimnames = list(NULL, c("from", "to")))
+	arcs(bn_mcsqrt)=arcset
+
+probs=mean(c(dim(arcs(bn_hc))[1],dim(arcs(bn_fi))[1],dim(arcs(bn_pc))[1],dim(arcs(bn_gs))[1],dim(arcs(bn_cl))[1],dim(arcs(bn_mc))[1],dim(arcs(bn_mc1))[1],dim(arcs(bn_mcsqrt))[1]))
+probs=probs/(length(names(simdata))*(length(names(simdata))-1)/2)
+
+bn_ra=random.graph(names(simdata), prob = probs)
+	
+resu=rbind(resu,c(
+shd(bn_hc,bn_pc),
+shd(bn_hc,bn_fi),
+shd(bn_hc,bn_mc),
+shd(bn_hc,bn_mc1),
+shd(bn_hc,bn_mcsqrt),
+shd(bn_hc,bn_gs),
+shd(bn_hc,bn_cl),
+shd(bn_hc,bn_ra),
+
+shd(bn_pc,bn_fi),
+shd(bn_pc,bn_mc),
+shd(bn_pc,bn_mc1),
+shd(bn_pc,bn_mcsqrt),
+shd(bn_pc,bn_gs),
+shd(bn_pc,bn_cl),
+shd(bn_pc,bn_ra),
+
+shd(bn_fi,bn_mc),
+shd(bn_fi,bn_mc1),
+shd(bn_fi,bn_mcsqrt),
+shd(bn_fi,bn_gs),
+shd(bn_fi,bn_cl),
+shd(bn_fi,bn_ra),
+
+shd(bn_mc,bn_mc1),
+shd(bn_mc,bn_mcsqrt),
+shd(bn_mc,bn_gs),
+shd(bn_mc,bn_cl),
+shd(bn_mc,bn_ra),
+
+shd(bn_mc1,bn_mcsqrt),
+shd(bn_mc1,bn_gs),
+shd(bn_mc1,bn_cl),
+shd(bn_mc1,bn_ra),
+
+shd(bn_mcsqrt,bn_gs),
+shd(bn_mcsqrt,bn_cl),
+shd(bn_mcsqrt,bn_ra),
+
+shd(bn_gs,bn_cl),
+shd(bn_gs,bn_ra),
+
+shd(bn_cl,bn_ra)
+
+))
+
+}
+
+resu_real=resu
+avg_resu=colMeans(resu)
+dists=matrix(0,nrow=9,ncol=9)
+c=1
+for (i in 1:8)
+{
+for (j in i:9)
+{
+ if (i!=j)
+	{
+		cat(i," ",j,"\r\n")
+		dists[i,j]=avg_resu[c]
+		dists[j,i]=avg_resu[c]
+		c=c+1
+	}
+}
+}
+
+
+rownames(dists)=c("Hill-Climbing","Peter-Clark","Fast IAMB","MISS-PACMAN n","MISS-PACMAN single","MISS-PACMAN sqrt(n)","Grow-Shrink","Chow-Liu","Random network")
+colnames(dists)=c("Hill-Climbing","Peter-Clark","Fast IAMB","MISS-PACMAN n","MISS-PACMAN single","MISS-PACMAN sqrt(n)","Grow-Shrink","Chow-Liu","Random network")
+
+
+dists_real=dists
+
+par(mfcol=c(2,2))
+par(mar=c(0.2,0.2,0.2,0.2) + 0.1)
+
+rdist=NULL
+for (i in 1:1000)
+{
+	nn=dim(dists_rand)[1]
+	b1=random.graph(paste("x",1:nn,sep=""), prob=2/(nn-1))
+	b2=random.graph(paste("x",1:nn,sep=""), prob=2/(nn-1))
+	rdist=c(rdist,shd(b1,b2))
+}
+zdists=(dists_rand-mean(rdist))/sd(rdist)
+corrplot(zdists,mar=c(0.5,0.5,4,0.5),is.corr=F,method=c("number","circle","color","ellipse")[4],type="full",addCoefasPercent=F,order=c("FPC","hclust","AOE")[2],diag=F,insig="label_sig",pch.cex=1.0,title="Random sparse networks")
+plot(nj(dists_rand),type="u")
+
+rdist=NULL
+for (i in 1:1000)
+{
+	nn=dim(dists_real)[1]
+	b1=random.graph(paste("x",1:nn,sep=""), prob=2/(nn-1))
+	b2=random.graph(paste("x",1:nn,sep=""), prob=2/(nn-1))
+	rdist=c(rdist,shd(b1,b2))
+}
+zdists=(dists_real-mean(rdist))/sd(rdist)
+corrplot(zdists,mar=c(0.5,0.5,4,0.5),is.corr=F,method=c("number","circle","color","ellipse")[4],type="full",addCoefasPercent=F,order=c("FPC","hclust","AOE")[2],diag=F,insig="label_sig",pch.cex=1.0,title="Class III malocclusion dataset")
+plot(nj(dists_real),type="u")
