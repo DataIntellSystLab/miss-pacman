@@ -218,12 +218,12 @@ for (i in 1:boot)
 	bn_true=empty.graph(names(randomdag))
 	arcset=matrix(unlist(dagitty::edges(randomdag)[,1:2]),ncol=2,dimnames = list(NULL, c("from", "to")))
 	arcs(bn_true)=arcset
-	hc_dist=c(hc_dist,shd(bn_hc,bn_true))
-	pc_dist=c(pc_dist,shd(bn_pc,bn_true))
-	fi_dist=c(fi_dist,shd(bn_fi,bn_true))
-	mc_dist_1=c(mc_dist_1,shd(bn_mc1,bn_true))
-	mc_dist_sqrt=c(mc_dist_sqrt,shd(bn_mcsqrt,bn_true))
-	mc_dist=c(mc_dist,shd(bn_mc,bn_true))
+	hc_dist=c(hc_dist,shd(skeleton(bn_hc),skeleton(bn_true)))
+	pc_dist=c(pc_dist,shd(skeleton(bn_pc),skeleton(bn_true)))
+	fi_dist=c(fi_dist,shd(skeleton(bn_fi),skeleton(bn_true)))
+	mc_dist_1=c(mc_dist_1,shd(skeleton(bn_mc1),skeleton(bn_true)))
+	mc_dist_sqrt=c(mc_dist_sqrt,shd(skeleton(bn_mcsqrt),skeleton(bn_true)))
+	mc_dist=c(mc_dist,shd(skeleton(bn_mc),skeleton(bn_true)))
 }
 test_1=cbind(mc_dist_1,mc_dist_sqrt,mc_dist,hc_dist,fi_dist,pc_dist)
 
@@ -305,12 +305,12 @@ for (i in 1:boot)
 	bn_true=empty.graph(names(randomdag))
 	arcset=matrix(unlist(dagitty::edges(randomdag)[,1:2]),ncol=2,dimnames = list(NULL, c("from", "to")))
 	arcs(bn_true)=arcset
-	hc_dist=c(hc_dist,shd(bn_hc,bn_true))
-	pc_dist=c(pc_dist,shd(bn_pc,bn_true))
-	fi_dist=c(fi_dist,shd(bn_fi,bn_true))
-	mc_dist_1=c(mc_dist_1,shd(bn_mc1,bn_true))
-	mc_dist_sqrt=c(mc_dist_sqrt,shd(bn_mcsqrt,bn_true))
-	mc_dist=c(mc_dist,shd(bn_mc,bn_true))
+	hc_dist=c(hc_dist,shd(skeleton(bn_hc),skeleton(bn_true)))
+	pc_dist=c(pc_dist,shd(skeleton(bn_pc),skeleton(bn_true)))
+	fi_dist=c(fi_dist,shd(skeleton(bn_fi),skeleton(bn_true)))
+	mc_dist_1=c(mc_dist_1,shd(skeleton(bn_mc1),skeleton(bn_true)))
+	mc_dist_sqrt=c(mc_dist_sqrt,shd(skeleton(bn_mcsqrt),skeleton(bn_true)))
+	mc_dist=c(mc_dist,shd(skeleton(bn_mc),skeleton(bn_true)))
 }
 test_2=cbind(mc_dist_1,mc_dist_sqrt,mc_dist,hc_dist,fi_dist,pc_dist)
 
@@ -422,49 +422,50 @@ misscpc_vars=list()
 bn_ra=random.graph(names(simdata), prob = probs)
 	
 resu=rbind(resu,c(
-shd(bn_hc,bn_pc),
-shd(bn_hc,bn_fi),
-shd(bn_hc,bn_mc),
-shd(bn_hc,bn_mc1),
-shd(bn_hc,bn_mcsqrt),
-shd(bn_hc,bn_gs),
-shd(bn_hc,bn_cl),
-shd(bn_hc,bn_ra),
 
-shd(bn_pc,bn_fi),
-shd(bn_pc,bn_mc),
-shd(bn_pc,bn_mc1),
-shd(bn_pc,bn_mcsqrt),
-shd(bn_pc,bn_gs),
-shd(bn_pc,bn_cl),
-shd(bn_pc,bn_ra),
+shd(skeleton(bn_hc),skeleton(bn_pc)),
+shd(skeleton(bn_hc),skeleton(bn_fi)),
+shd(skeleton(bn_hc),skeleton(bn_mc)),
+shd(skeleton(bn_hc),skeleton(bn_mc1)),
+shd(skeleton(bn_hc),skeleton(bn_mcsqrt)),
+shd(skeleton(bn_hc),skeleton(bn_gs)),
+shd(skeleton(bn_hc),skeleton(bn_cl)),
+shd(skeleton(bn_hc),skeleton(bn_ra)),
 
-shd(bn_fi,bn_mc),
-shd(bn_fi,bn_mc1),
-shd(bn_fi,bn_mcsqrt),
-shd(bn_fi,bn_gs),
-shd(bn_fi,bn_cl),
-shd(bn_fi,bn_ra),
+shd(skeleton(bn_pc),skeleton(bn_fi)),
+shd(skeleton(bn_pc),skeleton(bn_mc)),
+shd(skeleton(bn_pc),skeleton(bn_mc1)),
+shd(skeleton(bn_pc),skeleton(bn_mcsqrt)),
+shd(skeleton(bn_pc),skeleton(bn_gs)),
+shd(skeleton(bn_pc),skeleton(bn_cl)),
+shd(skeleton(bn_pc),skeleton(bn_ra)),
 
-shd(bn_mc,bn_mc1),
-shd(bn_mc,bn_mcsqrt),
-shd(bn_mc,bn_gs),
-shd(bn_mc,bn_cl),
-shd(bn_mc,bn_ra),
+shd(skeleton(bn_fi),skeleton(bn_mc)),
+shd(skeleton(bn_fi),skeleton(bn_mc1)),
+shd(skeleton(bn_fi),skeleton(bn_mcsqrt)),
+shd(skeleton(bn_fi),skeleton(bn_gs)),
+shd(skeleton(bn_fi),skeleton(bn_cl)),
+shd(skeleton(bn_fi),skeleton(bn_ra)),
 
-shd(bn_mc1,bn_mcsqrt),
-shd(bn_mc1,bn_gs),
-shd(bn_mc1,bn_cl),
-shd(bn_mc1,bn_ra),
+shd(skeleton(bn_mc),skeleton(bn_mc1)),
+shd(skeleton(bn_mc),skeleton(bn_mcsqrt)),
+shd(skeleton(bn_mc),skeleton(bn_gs)),
+shd(skeleton(bn_mc),skeleton(bn_cl)),
+shd(skeleton(bn_mc),skeleton(bn_ra)),
 
-shd(bn_mcsqrt,bn_gs),
-shd(bn_mcsqrt,bn_cl),
-shd(bn_mcsqrt,bn_ra),
+shd(skeleton(bn_mc1),skeleton(bn_mcsqrt)),
+shd(skeleton(bn_mc1),skeleton(bn_gs)),
+shd(skeleton(bn_mc1),skeleton(bn_cl)),
+shd(skeleton(bn_mc1),skeleton(bn_ra)),
 
-shd(bn_gs,bn_cl),
-shd(bn_gs,bn_ra),
+shd(skeleton(bn_mcsqrt),skeleton(bn_gs)),
+shd(skeleton(bn_mcsqrt),skeleton(bn_cl)),
+shd(skeleton(bn_mcsqrt),skeleton(bn_ra)),
 
-shd(bn_cl,bn_ra)
+shd(skeleton(bn_gs),skeleton(bn_cl)),
+shd(skeleton(bn_gs),skeleton(bn_ra)),
+
+shd(skeleton(bn_cl),skeleton(bn_ra))
 
 ))
 
@@ -571,51 +572,53 @@ probs=probs/(length(names(simdata))*(length(names(simdata))-1)/2)
 bn_ra=random.graph(names(simdata), prob = probs)
 	
 resu=rbind(resu,c(
-shd(bn_hc,bn_pc),
-shd(bn_hc,bn_fi),
-shd(bn_hc,bn_mc),
-shd(bn_hc,bn_mc1),
-shd(bn_hc,bn_mcsqrt),
-shd(bn_hc,bn_gs),
-shd(bn_hc,bn_cl),
-shd(bn_hc,bn_ra),
 
-shd(bn_pc,bn_fi),
-shd(bn_pc,bn_mc),
-shd(bn_pc,bn_mc1),
-shd(bn_pc,bn_mcsqrt),
-shd(bn_pc,bn_gs),
-shd(bn_pc,bn_cl),
-shd(bn_pc,bn_ra),
+shd(skeleton(bn_hc),skeleton(bn_pc)),
+shd(skeleton(bn_hc),skeleton(bn_fi)),
+shd(skeleton(bn_hc),skeleton(bn_mc)),
+shd(skeleton(bn_hc),skeleton(bn_mc1)),
+shd(skeleton(bn_hc),skeleton(bn_mcsqrt)),
+shd(skeleton(bn_hc),skeleton(bn_gs)),
+shd(skeleton(bn_hc),skeleton(bn_cl)),
+shd(skeleton(bn_hc),skeleton(bn_ra)),
 
-shd(bn_fi,bn_mc),
-shd(bn_fi,bn_mc1),
-shd(bn_fi,bn_mcsqrt),
-shd(bn_fi,bn_gs),
-shd(bn_fi,bn_cl),
-shd(bn_fi,bn_ra),
+shd(skeleton(bn_pc),skeleton(bn_fi)),
+shd(skeleton(bn_pc),skeleton(bn_mc)),
+shd(skeleton(bn_pc),skeleton(bn_mc1)),
+shd(skeleton(bn_pc),skeleton(bn_mcsqrt)),
+shd(skeleton(bn_pc),skeleton(bn_gs)),
+shd(skeleton(bn_pc),skeleton(bn_cl)),
+shd(skeleton(bn_pc),skeleton(bn_ra)),
 
-shd(bn_mc,bn_mc1),
-shd(bn_mc,bn_mcsqrt),
-shd(bn_mc,bn_gs),
-shd(bn_mc,bn_cl),
-shd(bn_mc,bn_ra),
+shd(skeleton(bn_fi),skeleton(bn_mc)),
+shd(skeleton(bn_fi),skeleton(bn_mc1)),
+shd(skeleton(bn_fi),skeleton(bn_mcsqrt)),
+shd(skeleton(bn_fi),skeleton(bn_gs)),
+shd(skeleton(bn_fi),skeleton(bn_cl)),
+shd(skeleton(bn_fi),skeleton(bn_ra)),
 
-shd(bn_mc1,bn_mcsqrt),
-shd(bn_mc1,bn_gs),
-shd(bn_mc1,bn_cl),
-shd(bn_mc1,bn_ra),
+shd(skeleton(bn_mc),skeleton(bn_mc1)),
+shd(skeleton(bn_mc),skeleton(bn_mcsqrt)),
+shd(skeleton(bn_mc),skeleton(bn_gs)),
+shd(skeleton(bn_mc),skeleton(bn_cl)),
+shd(skeleton(bn_mc),skeleton(bn_ra)),
 
-shd(bn_mcsqrt,bn_gs),
-shd(bn_mcsqrt,bn_cl),
-shd(bn_mcsqrt,bn_ra),
+shd(skeleton(bn_mc1),skeleton(bn_mcsqrt)),
+shd(skeleton(bn_mc1),skeleton(bn_gs)),
+shd(skeleton(bn_mc1),skeleton(bn_cl)),
+shd(skeleton(bn_mc1),skeleton(bn_ra)),
 
-shd(bn_gs,bn_cl),
-shd(bn_gs,bn_ra),
+shd(skeleton(bn_mcsqrt),skeleton(bn_gs)),
+shd(skeleton(bn_mcsqrt),skeleton(bn_cl)),
+shd(skeleton(bn_mcsqrt),skeleton(bn_ra)),
 
-shd(bn_cl,bn_ra)
+shd(skeleton(bn_gs),skeleton(bn_cl)),
+shd(skeleton(bn_gs),skeleton(bn_ra)),
+
+shd(skeleton(bn_cl),skeleton(bn_ra))
 
 ))
+
 
 }
 
@@ -653,7 +656,7 @@ for (i in 1:1000)
 	nn=dim(dists_rand)[1]
 	b1=random.graph(paste("x",1:nn,sep=""), prob=2/(nn-1))
 	b2=random.graph(paste("x",1:nn,sep=""), prob=2/(nn-1))
-	rdist=c(rdist,shd(b1,b2))
+	rdist=c(rdist,shd(skeleton(b1),skeleton(b2)))
 }
 zdists=(dists_rand-mean(rdist))/sd(rdist)
 corrplot(zdists,mar=c(0.5,0.5,4,0.5),is.corr=F,method=c("number","circle","color","ellipse")[4],type="full",addCoefasPercent=F,order=c("FPC","hclust","AOE")[2],diag=F,insig="label_sig",pch.cex=1.0,title="Random sparse networks")
@@ -665,7 +668,7 @@ for (i in 1:1000)
 	nn=dim(dists_real)[1]
 	b1=random.graph(paste("x",1:nn,sep=""), prob=2/(nn-1))
 	b2=random.graph(paste("x",1:nn,sep=""), prob=2/(nn-1))
-	rdist=c(rdist,shd(b1,b2))
+	rdist=c(rdist,shd(skeleton(b1),skeleton(b2)))
 }
 zdists=(dists_real-mean(rdist))/sd(rdist)
 corrplot(zdists,mar=c(0.5,0.5,4,0.5),is.corr=F,method=c("number","circle","color","ellipse")[4],type="full",addCoefasPercent=F,order=c("FPC","hclust","AOE")[2],diag=F,insig="label_sig",pch.cex=1.0,title="Class III malocclusion dataset")
